@@ -3,6 +3,8 @@
 
 ;; A personal utility library for Clojure/script with lots of useful and reuseable functions.
 
+;; 1. COLLECTIONS
+
 (defn in? 
   "true if coll contains elm"
   [coll elm]  
@@ -164,3 +166,52 @@
 
            form))
 
+
+(defn update-keys
+  "Walks a nested map m recursively updating all keys with the supplied
+   key-fn where the supplied predicate update? fn for the key is true.
+   key-fn should have one parameter; the key.
+   update? should accept two parameters; the key and the parent key."
+  [m update? key-fn]
+  (let [down (fn f [x p]
+               (cond
+                 (map-entry? x)   (let [[k v] x]
+                                    (if (nil? v) nil   ;;prunes where v is nil
+                                        (first {(f k p)
+                                                (if (coll? v)
+                                                  (f v k)
+                                                  v)})))
+                 
+                 (seq? x)         (map #(f % p) x)
+
+                 (coll? x)        (into (empty x) (map #(f % p) x))
+
+                 :else            (if (update? x p) (key-fn x) x)))]
+     (down m nil)))
+
+
+;; BASICS
+
+(defn err
+  "Creates an exception object with error-string."
+  [error-string]
+  #?(:clj (Exception. ^String error-string)
+     :cljs (js/Error. error-string)))
+
+
+(defn parse-int [s]
+  (try
+    (let [n #?(:clj (Integer/parseInt s)
+               :cljs (cljs.reader/read-string s))]
+      (if (integer? n) n (throw (err (str s " should be an integer.")))))
+    #? (:clj (catch Exception e (throw (err (str s " should be an integer."))))
+        :cljs (catch js/Error e (throw (err (str s " should be an integer.")))))))
+
+
+(defn parse-float [s]
+  (try
+    (let [n #?(:clj (Float/parseFloat s)
+               :cljs (cljs.reader/read-string s))]
+      (if (float? n) n (throw (err (str s " should be a floating point number.")))))
+    #? (:clj (catch Exception e (throw (err (str s " should be a floating point number."))))
+        :cljs (catch js/Error e (throw (err (str s " should be a floating point number.")))))))
